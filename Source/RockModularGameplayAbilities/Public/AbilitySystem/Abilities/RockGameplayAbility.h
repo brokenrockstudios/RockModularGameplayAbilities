@@ -6,12 +6,62 @@
 
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
+#include "AbilitySystem/RockAbilitySourceInterface.h"
 #include "AbilitySystem/RockActivationGroup.h"
 
 #include "RockGameplayAbility.generated.h"
 
+class URockAbilitySystemComponent;
+class URockAbilityCost;
+
 /**
- * 
+ * ERockAbilityActivationPolicy
+ *
+ *	Defines how an ability is meant to activate.
+ */
+UENUM(BlueprintType)
+enum class ERockAbilityActivationPolicy : uint8
+{
+	// Try to activate the ability when the input is triggered.
+	OnInputTriggered,
+
+	// Continually try to activate the ability while the input is active.
+	WhileInputActive,
+
+	// Try to activate the ability when an avatar is assigned.
+	OnSpawn,
+
+	//  
+	Max UMETA(Hidden)
+};
+
+/** Failure reason that can be used to play an animation montage when a failure occurs */
+USTRUCT(BlueprintType)
+struct FRockAbilityMontageFailureMessage
+{
+	GENERATED_BODY()
+
+public:
+	// Player controller that failed to activate the ability, if the AbilitySystemComponent was player owned
+	UPROPERTY(BlueprintReadWrite)
+	TObjectPtr<APlayerController> PlayerController = nullptr;
+
+	// Avatar actor that failed to activate the ability
+	UPROPERTY(BlueprintReadWrite)
+	TObjectPtr<AActor> AvatarActor = nullptr;
+	
+	// All the reasons why this ability has failed
+	UPROPERTY(BlueprintReadWrite)
+	FGameplayTagContainer FailureTags;
+
+	UPROPERTY(BlueprintReadWrite)
+	TObjectPtr<UAnimMontage> FailureMontage = nullptr;
+};
+
+/**
+ * URockGameplayAbility
+ *
+ * The base gameplay ability class used by Rock Modular Gameplay Abilities.
  */
 UCLASS()
 class ROCKMODULARGAMEPLAYABILITIES_API URockGameplayAbility : public UGameplayAbility
@@ -21,7 +71,6 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Rock|Ability")
 	AController* GetControllerFromActorInfo() const;
-
 	
 	// ~Begin UGameplayAbility interface
 	virtual bool CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayTagContainer* SourceTags, const FGameplayTagContainer* TargetTags, FGameplayTagContainer* OptionalRelevantTags) const override;
@@ -38,6 +87,24 @@ public:
 	virtual bool DoesAbilitySatisfyTagRequirements(const UAbilitySystemComponent& AbilitySystemComponent, const FGameplayTagContainer* SourceTags = nullptr, const FGameplayTagContainer* TargetTags = nullptr, OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
 	// ~End UGameplayAbility interface
 
+	ERockAbilityActivationPolicy GetActivationPolicy() const { return ActivationPolicy; }
+	ERockAbilityActivationGroup GetActivationGroup() const { return ActivationGroup; }
+
+	virtual void TryActivateAbilityOnSpawn(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) const;
+
+	void GetAbilitySource(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, float& OutSourceLevel,
+		const IRockAbilitySourceInterface*& OutAbilitySource, AActor*& OutEffectCauser) const;
+
+	URockAbilitySystemComponent* GetRockAbilitySystemComponentFromActorInfo() const;
+	// Returns true if the requested activation group is a valid transition.
+	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = "Rock|Ability", Meta = (ExpandBoolAsExecs = "ReturnValue"))
+	bool CanChangeActivationGroup(ERockAbilityActivationGroup NewGroup) const;
+
+	// Tries to change the activation group.  Returns true if it successfully changed.
+	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = "Rock|Ability", Meta = (ExpandBoolAsExecs = "ReturnValue"))
+	bool ChangeActivationGroup(ERockAbilityActivationGroup NewGroup);
+
+	
 	/** Called when this ability is granted to the ability system component. */
 	UFUNCTION(BlueprintImplementableEvent, Category = Ability, DisplayName = "OnAbilityAdded")
 	void K2_OnAbilityAdded();
@@ -57,14 +124,29 @@ public:
    	virtual void NativeOnAbilityFailedToActivate(const FGameplayTagContainer& FailedReason) const;
 	UFUNCTION(BlueprintImplementableEvent)
 	void K2_OnAbilityFailedToActivate(const FGameplayTagContainer& FailedReason) const;
-
 	
 
 protected:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Rock|Ability Activation")
+	ERockAbilityActivationPolicy ActivationPolicy;
 
 	// Defines the relationship between this ability activating and other abilities activating.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Lyra|Ability Activation")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Rock|Ability Activation")
 	ERockAbilityActivationGroup ActivationGroup = ERockAbilityActivationGroup::Independent;
+
+	
+	// Additional costs that must be paid to activate this ability
+	UPROPERTY(EditDefaultsOnly, Instanced, Category = Costs)
+	TArray<TObjectPtr<URockAbilityCost>> AdditionalCosts;
+	
+	// Map of failure tags to simple error messages
+	UPROPERTY(EditDefaultsOnly, Category = "Advanced")
+	TMap<FGameplayTag, FText> FailureTagToUserFacingMessages;
+
+	// Map of failure tags to anim montages that should be played with them
+	UPROPERTY(EditDefaultsOnly, Category = "Advanced")
+	TMap<FGameplayTag, TObjectPtr<UAnimMontage>> FailureTagToAnimMontage;
+
 
 	
 };
