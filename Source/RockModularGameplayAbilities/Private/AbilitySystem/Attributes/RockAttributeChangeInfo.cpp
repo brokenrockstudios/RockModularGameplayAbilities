@@ -1,6 +1,5 @@
 // Copyright Broken Rock Studios LLC. All Rights Reserved.
 // See the LICENSE file for details.
 
-#include "Logging/RockLogging.h"
+#include "AbilitySystem/Attributes/RockAttributeChangeInfo.h"
 
-DEFINE_LOG_CATEGORY(LogRockAbilitySystem);

@@ -5,6 +5,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "UIExtensionSystem.h"
 #include "Abilities/GameplayAbility.h"
 #include "AbilitySystem/RockAbilitySourceInterface.h"
 #include "AbilitySystem/RockActivationGroup.h"
@@ -95,7 +96,9 @@ public:
 	void GetAbilitySource(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, float& OutSourceLevel,
 		const IRockAbilitySourceInterface*& OutAbilitySource, AActor*& OutEffectCauser) const;
 
+	UFUNCTION(BlueprintCallable, Category = "Rock|Ability")
 	URockAbilitySystemComponent* GetRockAbilitySystemComponentFromActorInfo() const;
+
 	// Returns true if the requested activation group is a valid transition.
 	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = "Rock|Ability", Meta = (ExpandBoolAsExecs = "ReturnValue"))
 	bool CanChangeActivationGroup(ERockAbilityActivationGroup NewGroup) const;
@@ -124,7 +127,7 @@ public:
    	virtual void NativeOnAbilityFailedToActivate(const FGameplayTagContainer& FailedReason) const;
 	UFUNCTION(BlueprintImplementableEvent)
 	void K2_OnAbilityFailedToActivate(const FGameplayTagContainer& FailedReason) const;
-	
+
 
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Rock|Ability Activation")
@@ -134,7 +137,18 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Rock|Ability Activation")
 	ERockAbilityActivationGroup ActivationGroup = ERockAbilityActivationGroup::Independent;
 
-	
+
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category="Ability HUD Widget", meta=(MultiLine="true"))
+	TArray<TSubclassOf<UUserWidget>> _WidgetClasses;
+
+	// The location tag in the HUD layout to place the associated widget for this ability */
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category="Ability HUD Widget", meta=(MultiLine="true"))
+	TArray<FGameplayTag> _WidgetExtensionPointTags;
+
+	// Handle the added widget extensions
+	UPROPERTY(BlueprintReadWrite, Category="Ability HUD Widget", meta=(MultiLine="true"))
+	TArray<FUIExtensionHandle> _WidgetExtensionHandles;
+
 	// Additional costs that must be paid to activate this ability
 	UPROPERTY(EditDefaultsOnly, Instanced, Category = Costs)
 	TArray<TObjectPtr<URockAbilityCost>> AdditionalCosts;
@@ -147,6 +161,4 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Advanced")
 	TMap<FGameplayTag, TObjectPtr<UAnimMontage>> FailureTagToAnimMontage;
 
-
-	
 };

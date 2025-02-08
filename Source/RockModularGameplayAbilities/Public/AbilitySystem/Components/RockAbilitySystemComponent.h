@@ -34,7 +34,6 @@ public:
 
 	void TryActivateAbilitiesOnSpawn();
 
-	
 
 protected:
 
@@ -44,7 +43,9 @@ public:
 	void AddAbilityToActivationGroup(ERockAbilityActivationGroup Group, URockGameplayAbility* RockAbility);
 	void RemoveAbilityFromActivationGroup(ERockAbilityActivationGroup Group, URockGameplayAbility* RockAbility);
 	void CancelActivationGroupAbilities(ERockAbilityActivationGroup Group, URockGameplayAbility* IgnoreRockAbility, bool bReplicateCancelAbility);
-
+	void DeferredSetBaseAttributeValueFromReplication(const FGameplayAttribute& attribute, const FGameplayAttributeData& newValue);
+	void DeferredSetBaseAttributeValueFromReplication(const FGameplayAttribute& attribute, float newValue);
+	
 	/** Gets the ability target data associated with the given ability handle and activation info */
 	void GetAbilityTargetData(const FGameplayAbilitySpecHandle AbilityHandle, FGameplayAbilityActivationInfo ActivationInfo, FGameplayAbilityTargetDataHandle& OutTargetDataHandle);
 
@@ -53,6 +54,26 @@ public:
 	
 	/** Looks at ability tags and gathers additional required and blocking tags */
 	void GetAdditionalActivationTagRequirements(const FGameplayTagContainer& AbilityTags, FGameplayTagContainer& OutActivationRequired, FGameplayTagContainer& OutActivationBlocked) const;
+
+	
+protected:
+
+	// ~Begin UAbilitySystemComponent interface
+	virtual void NotifyAbilityActivated(const FGameplayAbilitySpecHandle Handle, UGameplayAbility* Ability) override;
+	virtual void NotifyAbilityFailed(const FGameplayAbilitySpecHandle Handle, UGameplayAbility* Ability, const FGameplayTagContainer& FailureReason) override;
+	virtual void NotifyAbilityEnded(FGameplayAbilitySpecHandle Handle, UGameplayAbility* Ability, bool bWasCancelled) override;
+	virtual void ApplyAbilityBlockAndCancelTags(const FGameplayTagContainer& AbilityTags, UGameplayAbility* RequestingAbility, bool bEnableBlockTags, const FGameplayTagContainer& BlockTags, bool bExecuteCancelTags, const FGameplayTagContainer& CancelTags) override;
+	virtual void HandleChangeAbilityCanBeCanceled(const FGameplayTagContainer& AbilityTags, UGameplayAbility* RequestingAbility, bool bCanBeCanceled) override;
+	// ~End UAbilitySystemComponent interface
+
+	// TODO: Move this up/down somewhere?
+	virtual void RemoveGameplayCue_Internal(const FGameplayTag GameplayCueTag, FActiveGameplayCueContainer& GameplayCueContainer) override;
+
+	/** Notify client that an ability failed to activate */
+	UFUNCTION(Client, Unreliable)
+	void ClientNotifyAbilityFailed(const UGameplayAbility* Ability, const FGameplayTagContainer& FailureReason);
+
+	void HandleAbilityFailed(const UGameplayAbility* Ability, const FGameplayTagContainer& FailureReason);
 
 	
 protected:
@@ -72,5 +93,4 @@ protected:
 
 	// Number of abilities running in each activation group.
 	int32 ActivationGroupCounts[static_cast<uint8>(ERockAbilityActivationGroup::MAX)];
-
 };

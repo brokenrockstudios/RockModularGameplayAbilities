@@ -131,7 +131,7 @@ void URockAbilitySystemComponent::CancelAbilitiesByFunc(TShouldCancelAbilityFunc
 		{
 			UE_LOG(LogRockAbilitySystem,
 				Error,
-				TEXT("CancelAbilitiesByFunc: Non-LyraGameplayAbility %s was Granted to ASC. Skipping."),
+				TEXT("CancelAbilitiesByFunc: Non-RockGameplayAbility %s was Granted to ASC. Skipping."),
 				*AbilitySpec.Ability.GetName());
 			continue;
 		}
@@ -249,6 +249,24 @@ void URockAbilitySystemComponent::CancelActivationGroupAbilities(
 	CancelAbilitiesByFunc(ShouldCancelFunc, bReplicateCancelAbility);
 }
 
+void URockAbilitySystemComponent::DeferredSetBaseAttributeValueFromReplication(
+	const FGameplayAttribute& attribute, const FGameplayAttributeData& newValue)
+{
+	const float OldValue = ActiveGameplayEffects.GetAttributeBaseValue(attribute);
+	ActiveGameplayEffects.SetAttributeBaseValue(attribute, newValue.GetBaseValue());
+	SetBaseAttributeValueFromReplication(attribute, newValue.GetBaseValue(), OldValue);
+	// TODO: You can process deferred delegates here
+}
+
+void URockAbilitySystemComponent::DeferredSetBaseAttributeValueFromReplication(
+	const FGameplayAttribute& attribute, float newValue)
+{
+	const float OldValue = ActiveGameplayEffects.GetAttributeBaseValue(attribute);
+	ActiveGameplayEffects.SetAttributeBaseValue(attribute, newValue);
+	SetBaseAttributeValueFromReplication(attribute, newValue, OldValue);
+	// TODO: You can process deferred delegates here
+}
+
 void URockAbilitySystemComponent::GetAbilityTargetData(
 	const FGameplayAbilitySpecHandle AbilityHandle, FGameplayAbilityActivationInfo ActivationInfo,
 	FGameplayAbilityTargetDataHandle& OutTargetDataHandle)
@@ -272,6 +290,131 @@ void URockAbilitySystemComponent::GetAdditionalActivationTagRequirements(
 	if (TagRelationshipMapping)
 	{
 		TagRelationshipMapping->GetRequiredAndBlockedActivationTags(AbilityTags, &OutActivationRequired, &OutActivationBlocked);
+	}
+}
+
+void URockAbilitySystemComponent::NotifyAbilityActivated(const FGameplayAbilitySpecHandle Handle, UGameplayAbility* Ability)
+{
+	Super::NotifyAbilityActivated(Handle, Ability);
+
+	if (URockGameplayAbility* RockAbility = Cast<URockGameplayAbility>(Ability))
+	{
+		AddAbilityToActivationGroup(RockAbility->GetActivationGroup(), RockAbility);
+	}
+}
+
+void URockAbilitySystemComponent::NotifyAbilityFailed(
+	const FGameplayAbilitySpecHandle Handle, UGameplayAbility* Ability, const FGameplayTagContainer& FailureReason)
+{
+	Super::NotifyAbilityFailed(Handle, Ability, FailureReason);
+
+	if (APawn* Avatar = Cast<APawn>(GetAvatarActor()))
+	{
+		if (!Avatar->IsLocallyControlled() && Ability->IsSupportedForNetworking())
+		{
+			ClientNotifyAbilityFailed(Ability, FailureReason);
+			return;
+		}
+	}
+
+	HandleAbilityFailed(Ability, FailureReason);
+}
+
+void URockAbilitySystemComponent::NotifyAbilityEnded(FGameplayAbilitySpecHandle Handle, UGameplayAbility* Ability, bool bWasCancelled)
+{
+	Super::NotifyAbilityEnded(Handle, Ability, bWasCancelled);
+
+	if (URockGameplayAbility* RockAbility = Cast<URockGameplayAbility>(Ability))
+	{
+		RemoveAbilityFromActivationGroup(RockAbility->GetActivationGroup(), RockAbility);
+	}
+}
+
+void URockAbilitySystemComponent::ApplyAbilityBlockAndCancelTags(
+	const FGameplayTagContainer& AbilityTags, UGameplayAbility* RequestingAbility, bool bEnableBlockTags, const FGameplayTagContainer& BlockTags,
+	bool bExecuteCancelTags, const FGameplayTagContainer& CancelTags)
+{
+	FGameplayTagContainer ModifiedBlockTags = BlockTags;
+	FGameplayTagContainer ModifiedCancelTags = CancelTags;
+
+	if (TagRelationshipMapping)
+	{
+		// Use the mapping to expand the ability tags into block and cancel tag
+		TagRelationshipMapping->GetAbilityTagsToBlockAndCancel(AbilityTags, &ModifiedBlockTags, &ModifiedCancelTags);
+	}
+
+	Super::ApplyAbilityBlockAndCancelTags(AbilityTags,
+		RequestingAbility,
+		bEnableBlockTags,
+		ModifiedBlockTags,
+		bExecuteCancelTags,
+		ModifiedCancelTags);
+
+	//@TODO: Apply any special logic like blocking input or movement
+}
+
+void URockAbilitySystemComponent::HandleChangeAbilityCanBeCanceled(
+	const FGameplayTagContainer& AbilityTags, UGameplayAbility* RequestingAbility, bool bCanBeCanceled)
+{
+	Super::HandleChangeAbilityCanBeCanceled(AbilityTags, RequestingAbility, bCanBeCanceled);
+
+	//@TODO: Apply any special logic like blocking input or movement
+}
+
+void URockAbilitySystemComponent::RemoveGameplayCue_Internal(const FGameplayTag GameplayCueTag, FActiveGameplayCueContainer& GameplayCueContainer)
+{
+	//Super::RemoveGameplayCue_Internal(GameplayCueTag, GameplayCueContainer);
+	// TODO: This whole bit of code is likely fixed now properly in ASC in UE 5.4 and can possibly be removed in 5.4
+	if (IsOwnerActorAuthoritative())
+	{
+		int32 NumMatchingCues = 0;
+		for (const FActiveGameplayCue& GameplayCue : GameplayCueContainer.GameplayCues)
+		{
+			NumMatchingCues += (GameplayCue.GameplayCueTag == GameplayCueTag);
+		}
+
+		if (NumMatchingCues > 0)
+		{
+			// AbilitySystem.GameplayCueNotifyTagCheckOnRemove assumes the tag is removed before any invocation of EGameplayCueEvent::Removed.
+			// We cannot use GameplayCueContainer.RemoveCue because that removes the cues while updating the TagMap.
+			// Instead, we need to manually count the removals, update the tag map, then Invoke the Cue events while removing the Cues.
+			UpdateTagMap(GameplayCueTag, -NumMatchingCues);
+
+			for (int32 Index = GameplayCueContainer.GameplayCues.Num() - 1; Index >= 0; --Index)
+			{
+				const FActiveGameplayCue& GameplayCue = GameplayCueContainer.GameplayCues[Index];
+				if (GameplayCue.GameplayCueTag == GameplayCueTag)
+				{
+					// Call on server here, clients get it from repnotify on the GameplayCueContainer rather than a multicast rpc
+					InvokeGameplayCueEvent(GameplayCueTag, EGameplayCueEvent::Removed, GameplayCue.Parameters);
+					GameplayCueContainer.GameplayCues.RemoveAt(Index);
+				}
+			}
+
+			// Ensure that the clients are aware of these changes ASAP
+			GameplayCueContainer.MarkArrayDirty();
+			ForceReplication();
+		}
+	}
+	else if (ScopedPredictionKey.IsLocalClientKey())
+	{
+		GameplayCueContainer.PredictiveRemove(GameplayCueTag);
+	}
+}
+
+void URockAbilitySystemComponent::ClientNotifyAbilityFailed_Implementation(
+	const UGameplayAbility* Ability, const FGameplayTagContainer& FailureReason)
+{
+	HandleAbilityFailed(Ability, FailureReason);
+}
+
+void URockAbilitySystemComponent::HandleAbilityFailed(const UGameplayAbility* Ability, const FGameplayTagContainer& FailureReason)
+{
+	//UE_LOG(LogRockAbilitySystem, Warning, TEXT("Ability %s failed to activate (tags: %s)"), *GetPathNameSafe(Ability), *FailureReason.ToString());
+
+	if (const URockGameplayAbility* RockAbility = Cast<const URockGameplayAbility>(Ability))
+	{
+		RockAbility->OnAbilityFailedToActivate(FailureReason);
 	}
 }
 

@@ -17,8 +17,6 @@ public class RockModularGameplayAbilities : ModuleRules
 				"GameplayMessageRuntime",
 				"GameplayTags",
 				"GameplayTasks",
-				"ModularGameplay",
-				"NetCore",
 				// ... add other public dependencies that you statically link with here ...
 			}
 		);
@@ -28,7 +26,12 @@ public class RockModularGameplayAbilities : ModuleRules
 			new string[]
 			{
 				"CoreUObject",
-				"Engine"
+				"Engine",
+				"UMG",
+				"UIExtension",
+				"IrisCore", 
+				"ModularGameplay",
+				"NetCore", 
 			}
 		);
 	}

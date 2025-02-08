@@ -4,7 +4,7 @@
 	"VersionName": "1.0",
 	"FriendlyName": "RockModularGameplayAbilities",
 	"Description": "A community plugin for GameplayAbilities, heavily derived from Epic's Lyra Sample Project.",
-	"Category": "Other",
+	"Category": "Gameplay",
 	"CreatedBy": "Broken Rock Studios",
 	"CreatedByURL": "https://github.com/brokenrockstudios",
 	"DocsURL": "",
@@ -19,19 +19,28 @@
 			"Name": "RockModularGameplayAbilities",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "RockModularGameplayAbilitiesEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
-        {
-            "Name": "GameplayAbilities",
-            "Enabled": true
-        },
+		{
+			"Name": "GameplayAbilities",
+			"Enabled": true
+		},
 		{
 			"Name": "ModularGameplay",
 			"Enabled": true
 		},
 		{
 			"Name": "GameplayMessageRouter",
+			"Enabled": true
+		},
+		{
+			"Name": "UIExtension",
 			"Enabled": true
 		}
 	]

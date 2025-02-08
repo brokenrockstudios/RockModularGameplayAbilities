@@ -1,7 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 // Copyright Broken Rock Studios LLC. All Rights Reserved.
+// See the LICENSE file for details.
 
-#pragma once
+#pragma once 
 
 #include "UObject/Interface.h"
 
@@ -11,7 +12,7 @@ class UObject;
 class UPhysicalMaterial;
 struct FGameplayTagContainer;
 
-/** Base interface for anything acting as a ability calculation source */
+/** Base interface for anything acting as an ability calculation source */
 UINTERFACE()
 class ROCKMODULARGAMEPLAYABILITIES_API URockAbilitySourceInterface : public UInterface
 {
