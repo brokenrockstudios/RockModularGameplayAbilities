@@ -8,8 +8,6 @@
 #include "AbilitySystem/Attributes/RockAttributeSet.h"
 #include "AbilitySystem/Global/RockAbilitySystemGlobals.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(RockAttributeInitKeyCustomization)
-
 #define LOCTEXT_NAMESPACE "RockAttributeBasedFloatDetails"
 
 TSharedRef<IPropertyTypeCustomization> FRockAttributeInitKeyCustomization::MakeInstance()

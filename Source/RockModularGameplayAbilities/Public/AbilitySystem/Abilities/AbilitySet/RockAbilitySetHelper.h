@@ -3,13 +3,13 @@
 // See the LICENSE file for details.
 
 #pragma once
+#include "ActiveGameplayEffectHandle.h"
+#include "GameplayAbilitySpecHandle.h"
 #include "GameplayTagContainer.h"
 
 #include "RockAbilitySetHelper.generated.h"
 
 class URockAbilitySystemComponent;
-struct FActiveGameplayEffectHandle;
-struct FGameplayAbilitySpecHandle;
 class UAttributeSet;
 class UGameplayEffect;
 class URockGameplayAbility;

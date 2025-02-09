@@ -7,8 +7,6 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemLog.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(RockAttributeSetInitter)
-
 TSubclassOf<UAttributeSet> CommonFindBestAttributeClass(TArray<TSubclassOf<UAttributeSet>>& ClassList, const FString& PartialName)
 {
 	for (const TSubclassOf<UAttributeSet> Class : ClassList)

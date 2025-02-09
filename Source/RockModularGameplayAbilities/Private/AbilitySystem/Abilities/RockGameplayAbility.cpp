@@ -8,11 +8,13 @@
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystemLog.h"
 #include "AbilitySystem/RockAbilitySourceInterface.h"
+#include "AbilitySystem/RockGameplayEffectContext.h"
 #include "AbilitySystem/RockGameplayTags.h"
 #include "AbilitySystem/Abilities/RockAbilitySimpleFailureMessage.h"
 #include "AbilitySystem/AbilityCost/RockAbilityCost.h"
 #include "AbilitySystem/Components/RockAbilitySystemComponent.h"
 #include "GameFramework/GameplayMessageSubsystem.h"
+#include "Logging/RockLogging.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RockGameplayAbility)
 
@@ -115,12 +117,43 @@ bool URockGameplayAbility::CanActivateAbility(
 
 void URockGameplayAbility::SetCanBeCanceled(bool bCanBeCanceled)
 {
+	// The ability can not block canceling if it's replaceable.
+	if (!bCanBeCanceled && (ActivationGroup == ERockAbilityActivationGroup::Exclusive_Replaceable))
+	{
+		UE_LOG(LogRockAbilitySystem,
+			Error,
+			TEXT("SetCanBeCanceled: Ability [%s] can not block canceling because its activation group is replaceable."),
+			*GetName());
+		return;
+	}
+	
 	Super::SetCanBeCanceled(bCanBeCanceled);
 }
 
 void URockGameplayAbility::OnGiveAbility(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
 {
 	Super::OnGiveAbility(ActorInfo, Spec);
+	
+	K2_OnAbilityAdded();
+
+	if (_WidgetClasses.Num() > 0)
+	{
+		UUIExtensionSubsystem* UIExtensionSubsystem = GetWorld()->GetSubsystem<UUIExtensionSubsystem>();
+		for (int32 i = 0; i < _WidgetClasses.Num() && i < _WidgetExtensionPointTags.Num(); i++)
+		{
+			const auto widgetClass = _WidgetClasses[i];
+			const auto pointTag = this->_WidgetExtensionPointTags[i];
+			FUIExtensionHandle _WidgetExtensionHandle = UIExtensionSubsystem->RegisterExtensionAsWidgetForContext(
+				pointTag,
+				GetOwningActorFromActorInfo(),
+				widgetClass,
+				-1);
+
+			_WidgetExtensionHandles.Add(_WidgetExtensionHandle);
+		}
+	}
+
+	TryActivateAbilityOnSpawn(ActorInfo, Spec);
 }
 
 // void URockGameplayAbility::OnRemoveAbility(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
@@ -223,12 +256,34 @@ void URockGameplayAbility::ApplyCost(
 FGameplayEffectContextHandle URockGameplayAbility::MakeEffectContext(
 	const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo) const
 {
-	return Super::MakeEffectContext(Handle, ActorInfo);
+	FGameplayEffectContextHandle ContextHandle = Super::MakeEffectContext(Handle, ActorInfo);
+
+	FRockGameplayEffectContext* EffectContext = FRockGameplayEffectContext::ExtractEffectContext(ContextHandle);
+	check(EffectContext);
+
+	check(ActorInfo);
+
+	AActor* EffectCauser = nullptr;
+	const IRockAbilitySourceInterface* AbilitySource = nullptr;
+	float SourceLevel = 0.0f;
+	GetAbilitySource(Handle, ActorInfo, /*out*/ SourceLevel, /*out*/ AbilitySource, /*out*/ EffectCauser);
+
+	const UObject* SourceObject = GetSourceObject(Handle, ActorInfo);
+
+	AActor* Instigator = ActorInfo ? ActorInfo->OwnerActor.Get() : nullptr;
+
+	EffectContext->SetAbilitySource(AbilitySource, SourceLevel);
+	EffectContext->AddInstigator(Instigator, EffectCauser);
+	EffectContext->AddSourceObject(SourceObject);
+
+	return ContextHandle;
 }
 
 void URockGameplayAbility::ApplyAbilityTagsToGameplayEffectSpec(FGameplayEffectSpec& Spec, FGameplayAbilitySpec* AbilitySpec) const
 {
 	Super::ApplyAbilityTagsToGameplayEffectSpec(Spec, AbilitySpec);
+	// TODO: Move UPhysicalMaterialWithTags from LyraGameplayAbility down to RockGameplayAbility?
+	// Is it generalizable enough for this plugin or should it stay game specific?
 }
 
 bool URockGameplayAbility::DoesAbilitySatisfyTagRequirements(
