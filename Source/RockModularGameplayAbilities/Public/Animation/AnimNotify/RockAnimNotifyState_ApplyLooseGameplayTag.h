@@ -10,7 +10,7 @@
 #include "RockAnimNotifyState_ApplyLooseGameplayTag.generated.h"
 
 /**
- * Anim notify state that applies and removes loose gameplay tags.
+ * Anim notify state that applies and removes loose gameplay tags for the duration of the anim notify state.
  */
 UCLASS()
 class ROCKMODULARGAMEPLAYABILITIES_API URockAnimNotifyState_ApplyLooseGameplayTag : public UAnimNotifyState

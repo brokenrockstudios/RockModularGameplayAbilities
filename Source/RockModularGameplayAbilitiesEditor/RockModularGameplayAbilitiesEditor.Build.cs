@@ -5,30 +5,28 @@ using UnrealBuildTool;
 
 public class RockModularGameplayAbilitiesEditor : ModuleRules
 {
-    public RockModularGameplayAbilitiesEditor(ReadOnlyTargetRules Target) : base(Target)
+    public RockModularGameplayAbilitiesEditor(ReadOnlyTargetRules target) : base(target)
     {
-        PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+        PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
         PublicDependencyModuleNames.AddRange(
-            new string[]
-            {
+            [
                 "Core",
                 "RockModularGameplayAbilities",
-                "UnrealEd",
-            }
+                "UnrealEd"
+            ]
         );
 
         PrivateDependencyModuleNames.AddRange(
-            new string[]
-            {
+            [
                 "CoreUObject",
                 "Engine",
                 "Slate",
                 "SlateCore", 
                 "ToolMenus",
                 "AssetDefinition", 
-                "PropertyEditor",
-            }
+                "PropertyEditor"
+            ]
         );
     }
 }

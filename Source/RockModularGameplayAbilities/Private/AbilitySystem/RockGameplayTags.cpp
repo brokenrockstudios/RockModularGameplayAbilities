@@ -20,6 +20,8 @@ UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_ActivateFail_ActivationGroup, "Ability.Ac
 
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Death, "Status.Death", "Target has the death status.");
 
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Gameplay_AbilityInputBlocked, "Gameplay.AbilityInputBlocked", "Ability input is blocked.");
+
 
 FGameplayTag FindTagByString(const FString& TagString, bool bMatchPartialString)
 {

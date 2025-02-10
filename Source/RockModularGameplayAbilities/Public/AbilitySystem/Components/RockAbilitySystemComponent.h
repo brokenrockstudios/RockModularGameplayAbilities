@@ -6,10 +6,10 @@
 
 #include "CoreMinimal.h"
 #include "AbilitySystemComponent.h"
+#include "NativeGameplayTags.h"
 #include "AbilitySystem/RockActivationGroup.h"
 #include "AbilitySystem/Abilities/RockGameplayAbility.h"
 #include "RockAbilitySystemComponent.generated.h"
-
 
 class URockAbilityTagRelationshipMapping;
 
@@ -32,6 +32,21 @@ public:
 
 	virtual void InitAbilityActorInfo(AActor* InOwnerActor, AActor* InAvatarActor) override;
 
+	void ProcessAbilityInput(float DeltaTime, bool bGamePaused);
+	void ClearAbilityInput();
+	
+	
+	//~ AbilitySet interface
+	void CancelInputActivatedAbilities(bool bReplicateCancelAbility);
+	void AbilityInputTagPressed(const FGameplayTag& InputTag);
+	void AbilityInputTagReleased(const FGameplayTag& InputTag);
+	//~ End of AbilitySet interface
+
+	
+	// Uses a gameplay effect to add the specified dynamic granted tag.
+	virtual void AddDynamicTagGameplayEffect(const FGameplayTag& Tag);
+	virtual void RemoveDynamicTagGameplayEffect(const FGameplayTag& Tag);
+	
 	void TryActivateAbilitiesOnSpawn();
 
 

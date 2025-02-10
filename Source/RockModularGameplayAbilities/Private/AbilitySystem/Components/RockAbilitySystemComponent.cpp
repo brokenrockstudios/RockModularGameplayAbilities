@@ -5,10 +5,14 @@
 #include "AbilitySystem/Components/RockAbilitySystemComponent.h"
 
 #include "AbilitySystemInterface.h"
+#include "AbilitySystem/RockGameplayTags.h"
 #include "AbilitySystem/Assets/RockAbilityTagRelationshipMapping.h"
 #include "AbilitySystem/Global/RockGlobalAbilitySystem.h"
 #include "Animation/RockAnimInstance.h"
 #include "Logging/RockLogging.h"
+
+#include UE_INLINE_GENERATED_CPP_BY_NAME(RockAbilitySystemComponent)
+
 
 URockAbilitySystemComponent::URockAbilitySystemComponent(const FObjectInitializer& ObjectInitializer)
 {
@@ -101,6 +105,204 @@ void URockAbilitySystemComponent::InitAbilityActorInfo(AActor* InOwnerActor, AAc
 
 		TryActivateAbilitiesOnSpawn();
 	}
+}
+
+void URockAbilitySystemComponent::ProcessAbilityInput(float DeltaTime, bool bGamePaused)
+{
+	if (HasMatchingGameplayTag(RockGameplayTags::Gameplay_AbilityInputBlocked))
+	{
+		ClearAbilityInput();
+		return;
+	}
+
+	static TArray<FGameplayAbilitySpecHandle> AbilitiesToActivate;
+	AbilitiesToActivate.Reset();
+
+	//@TODO: See if we can use FScopedServerAbilityRPCBatcher ScopedRPCBatcher in some of these loops
+
+	//
+	// Process all abilities that activate when the input is held.
+	//
+	for (const FGameplayAbilitySpecHandle& SpecHandle : InputHeldSpecHandles)
+	{
+		if (const FGameplayAbilitySpec* AbilitySpec = FindAbilitySpecFromHandle(SpecHandle))
+		{
+			if (AbilitySpec->Ability && !AbilitySpec->IsActive())
+			{
+				const URockGameplayAbility* LyraAbilityCDO = Cast<URockGameplayAbility>(AbilitySpec->Ability);
+				if (LyraAbilityCDO && LyraAbilityCDO->GetActivationPolicy() == ERockAbilityActivationPolicy::WhileInputActive)
+				{
+					AbilitiesToActivate.AddUnique(AbilitySpec->Handle);
+				}
+			}
+		}
+	}
+
+	//
+	// Process all abilities that had their input pressed this frame.
+	//
+	for (const FGameplayAbilitySpecHandle& SpecHandle : InputPressedSpecHandles)
+	{
+		if (FGameplayAbilitySpec* AbilitySpec = FindAbilitySpecFromHandle(SpecHandle))
+		{
+			if (AbilitySpec->Ability)
+			{
+				AbilitySpec->InputPressed = true;
+
+				if (AbilitySpec->IsActive())
+				{
+					// Ability is active so pass along the input event.
+					AbilitySpecInputPressed(*AbilitySpec);
+				}
+				else
+				{
+					const URockGameplayAbility* LyraAbilityCDO = Cast<URockGameplayAbility>(AbilitySpec->Ability);
+
+					if (LyraAbilityCDO && LyraAbilityCDO->GetActivationPolicy() == ERockAbilityActivationPolicy::OnInputTriggered)
+					{
+						AbilitiesToActivate.AddUnique(AbilitySpec->Handle);
+					}
+				}
+			}
+		}
+	}
+
+	//
+	// Try to activate all the abilities that are from presses and holds.
+	// We do it all at once so that held inputs don't activate the ability
+	// and then also send a input event to the ability because of the press.
+	//
+	for (const FGameplayAbilitySpecHandle& AbilitySpecHandle : AbilitiesToActivate)
+	{
+		TryActivateAbility(AbilitySpecHandle);
+	}
+
+	//
+	// Process all abilities that had their input released this frame.
+	//
+	for (const FGameplayAbilitySpecHandle& SpecHandle : InputReleasedSpecHandles)
+	{
+		if (FGameplayAbilitySpec* AbilitySpec = FindAbilitySpecFromHandle(SpecHandle))
+		{
+			if (AbilitySpec->Ability)
+			{
+				AbilitySpec->InputPressed = false;
+
+				if (AbilitySpec->IsActive())
+				{
+					// Ability is active so pass along the input event.
+					AbilitySpecInputReleased(*AbilitySpec);
+				}
+			}
+		}
+	}
+
+	//
+	// Clear the cached ability handles.
+	//
+	InputPressedSpecHandles.Reset();
+	InputReleasedSpecHandles.Reset();
+}
+
+void URockAbilitySystemComponent::ClearAbilityInput()
+{
+	InputPressedSpecHandles.Reset();
+	InputReleasedSpecHandles.Reset();
+	InputHeldSpecHandles.Reset();
+}
+
+void URockAbilitySystemComponent::CancelInputActivatedAbilities(bool bReplicateCancelAbility)
+{
+	auto ShouldCancelFunc = [this](const URockGameplayAbility* LyraAbility, FGameplayAbilitySpecHandle Handle)
+	{
+		const ERockAbilityActivationPolicy ActivationPolicy = LyraAbility->GetActivationPolicy();
+		return ((ActivationPolicy == ERockAbilityActivationPolicy::OnInputTriggered) || (ActivationPolicy == ERockAbilityActivationPolicy::WhileInputActive));
+	};
+
+	CancelAbilitiesByFunc(ShouldCancelFunc, bReplicateCancelAbility);
+}
+
+
+void URockAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& InputTag)
+{
+	if (InputTag.IsValid())
+	{
+		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
+		{
+			if (AbilitySpec.Ability && (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag)))
+			{
+				InputPressedSpecHandles.AddUnique(AbilitySpec.Handle);
+				InputHeldSpecHandles.AddUnique(AbilitySpec.Handle);
+			}
+		}
+	}
+}
+
+void URockAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& InputTag)
+{
+	if (InputTag.IsValid())
+	{
+		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
+		{
+			if (AbilitySpec.Ability && (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag)))
+			{
+				InputReleasedSpecHandles.AddUnique(AbilitySpec.Handle);
+				InputHeldSpecHandles.Remove(AbilitySpec.Handle);
+			}
+		}
+	}
+}
+
+void URockAbilitySystemComponent::AddDynamicTagGameplayEffect(const FGameplayTag& Tag)
+{
+	UE_LOG(LogRockAbilitySystem, Error, TEXT("AddDynamicTagGameplayEffect: Not yet implemented. Please override in parent class."));
+	checkf(false, TEXT("AddDynamicTagGameplayEffect: Not yet implemented. Please override in parent class"));
+	// const TSubclassOf<UGameplayEffect> DynamicTagGE = ULyraAssetManager::GetSubclass(ULyraGameData::Get().DynamicTagGameplayEffect);
+	// if (!DynamicTagGE)
+	// {
+	// 	UE_LOG(LogLyraAbilitySystem,
+	// 		Warning,
+	// 		TEXT("AddDynamicTagGameplayEffect: Unable to find DynamicTagGameplayEffect [%s]."),
+	// 		*ULyraGameData::Get().DynamicTagGameplayEffect.GetAssetName());
+	// 	return;
+	// }
+	//
+	// const FGameplayEffectSpecHandle SpecHandle = MakeOutgoingSpec(DynamicTagGE, 1.0f, MakeEffectContext());
+	// FGameplayEffectSpec* Spec = SpecHandle.Data.Get();
+	//
+	// if (!Spec)
+	// {
+	// 	UE_LOG(LogLyraAbilitySystem,
+	// 		Warning,
+	// 		TEXT("AddDynamicTagGameplayEffect: Unable to make outgoing spec for [%s]."),
+	// 		*GetNameSafe(DynamicTagGE));
+	// 	return;
+	// }
+	//
+	// Spec->DynamicGrantedTags.AddTag(Tag);
+	//
+	// ApplyGameplayEffectSpecToSelf(*Spec);
+}
+
+void URockAbilitySystemComponent::RemoveDynamicTagGameplayEffect(const FGameplayTag& Tag)
+{
+	// Not implemented in this plugin yet
+	UE_LOG(LogRockAbilitySystem, Error, TEXT("RemoveDynamicTagGameplayEffect: Not yet implemented."));
+	checkf(false, TEXT("RemoveDynamicTagGameplayEffect: Not yet implemented. Please override in parent class"));
+	// const TSubclassOf<UGameplayEffect> DynamicTagGE = ULyraAssetManager::GetSubclass(ULyraGameData::Get().DynamicTagGameplayEffect);
+	// if (!DynamicTagGE)
+	// {
+	// 	UE_LOG(LogRockAbilitySystem,
+	// 		Warning,
+	// 		TEXT("RemoveDynamicTagGameplayEffect: Unable to find gameplay effect [%s]."),
+	// 		*ULyraGameData::Get().DynamicTagGameplayEffect.GetAssetName());
+	// 	return;
+	// }
+	//
+	// FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(Tag));
+	// Query.EffectDefinition = DynamicTagGE;
+	//
+	// RemoveActiveEffects(Query);
 }
 
 void URockAbilitySystemComponent::TryActivateAbilitiesOnSpawn()
