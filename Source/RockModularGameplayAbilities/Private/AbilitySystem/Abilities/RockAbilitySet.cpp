@@ -10,7 +10,9 @@
 
 #define LOCTEXT_NAMESPACE "RockAbilitySet"
 
+#if WITH_EDITOR
 #include "Misc/DataValidation.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RockAbilitySet)
 

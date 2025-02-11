@@ -14,7 +14,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RockAbilitySystemComponent)
 
 
-URockAbilitySystemComponent::URockAbilitySystemComponent(const FObjectInitializer& ObjectInitializer)
+URockAbilitySystemComponent::URockAbilitySystemComponent(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	InputPressedSpecHandles.Reset();
 	InputReleasedSpecHandles.Reset();
