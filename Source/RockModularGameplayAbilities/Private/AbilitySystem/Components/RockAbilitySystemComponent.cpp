@@ -424,8 +424,7 @@ void URockAbilitySystemComponent::AddAbilityToActivationGroup(ERockAbilityActiva
 		break;
 	}
 
-	const int32 ExclusiveCount = ActivationGroupCounts[static_cast<uint8>(ERockAbilityActivationGroup::Exclusive_Replaceable)]
-		+ ActivationGroupCounts[static_cast<uint8>(ERockAbilityActivationGroup::Exclusive_Blocking)];
+	const int32 ExclusiveCount = ActivationGroupCounts[static_cast<uint8>(ERockAbilityActivationGroup::Exclusive_Replaceable)] + ActivationGroupCounts[static_cast<uint8>(ERockAbilityActivationGroup::Exclusive_Blocking)];
 	if (!ensure(ExclusiveCount <= 1))
 	{
 		UE_LOG(LogRockAbilitySystem, Error, TEXT("AddAbilityToActivationGroup: Multiple exclusive abilities are running."));
